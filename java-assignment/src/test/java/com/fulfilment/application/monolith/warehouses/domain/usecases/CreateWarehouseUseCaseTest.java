@@ -32,7 +32,7 @@ public class CreateWarehouseUseCaseTest {
     WebApplicationException error =
         assertThrows(WebApplicationException.class, () -> useCase.create(warehouse("MWH.101", 10, 2)));
 
-    assertEquals(401, error.getResponse().getStatus());
+    assertEquals(400, error.getResponse().getStatus());
   }
 
   @Test

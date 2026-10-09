@@ -3,6 +3,7 @@ name: Java CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
@@ -41,7 +42,7 @@ jobs:
           cache: maven
           cache-dependency-path: java-assignment/pom.xml
       - name: Run unit tests and enforce business-logic coverage
-        run: ./mvnw --batch-mode --no-transfer-progress clean verify
+        run: bash ./mvnw --batch-mode --no-transfer-progress clean verify
       - name: Upload JaCoCo report
         if: always()
         uses: actions/upload-artifact@v4
