@@ -8,9 +8,12 @@ import com.fulfilment.application.monolith.warehouses.domain.ports.WarehouseStor
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.ws.rs.WebApplicationException;
 import java.time.LocalDateTime;
+import org.jboss.logging.Logger;
 
 @ApplicationScoped
 public class ReplaceWarehouseUseCase implements ReplaceWarehouseOperation {
+
+  private static final Logger LOGGER = Logger.getLogger(ReplaceWarehouseUseCase.class);
 
   private final WarehouseStore warehouseStore;
   private final LocationResolver locationResolver;
@@ -23,6 +26,7 @@ public class ReplaceWarehouseUseCase implements ReplaceWarehouseOperation {
 
   @Override
   public void replace(Warehouse newWarehouse) {
+    LOGGER.debugf("Validating replacement for warehouse %s.", newWarehouse.businessUnitCode);
     CreateWarehouseUseCase.validateRequiredFields(newWarehouse);
     Warehouse currentWarehouse =
         warehouseStore.findByBusinessUnitCode(newWarehouse.businessUnitCode);
@@ -53,5 +57,7 @@ public class ReplaceWarehouseUseCase implements ReplaceWarehouseOperation {
     newWarehouse.createdAt = LocalDateTime.now();
     newWarehouse.archivedAt = null;
     warehouseStore.create(newWarehouse);
+    LOGGER.infof(
+        "Replaced warehouse %s at location %s.", newWarehouse.businessUnitCode, newWarehouse.location);
   }
 }

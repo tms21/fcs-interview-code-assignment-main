@@ -9,9 +9,12 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.ws.rs.WebApplicationException;
 import java.time.LocalDateTime;
 import java.util.List;
+import org.jboss.logging.Logger;
 
 @ApplicationScoped
 public class CreateWarehouseUseCase implements CreateWarehouseOperation {
+
+  private static final Logger LOGGER = Logger.getLogger(CreateWarehouseUseCase.class);
 
   private final WarehouseStore warehouseStore;
   private final LocationResolver locationResolver;
@@ -23,6 +26,7 @@ public class CreateWarehouseUseCase implements CreateWarehouseOperation {
 
   @Override
   public void create(Warehouse warehouse) {
+    LOGGER.debug("Validating warehouse creation request.");
     validateRequiredFields(warehouse);
     if (warehouseStore.findByBusinessUnitCode(warehouse.businessUnitCode) != null) {
       throw badRequest("Business unit code already exists.");
@@ -35,6 +39,7 @@ public class CreateWarehouseUseCase implements CreateWarehouseOperation {
     warehouse.createdAt = LocalDateTime.now();
     warehouse.archivedAt = null;
     warehouseStore.create(warehouse);
+    LOGGER.infof("Created warehouse %s at location %s.", warehouse.businessUnitCode, warehouse.location);
   }
 
   static void validateRequiredFields(Warehouse warehouse) {
@@ -57,6 +62,7 @@ public class CreateWarehouseUseCase implements CreateWarehouseOperation {
       Location location,
       Warehouse excludedWarehouse,
       List<Warehouse> existingWarehouses) {
+    LOGGER.debugf("Checking warehouse limits for location %s.", warehouse.location);
     if (location == null) {
       throw badRequest("Warehouse location does not exist.");
     }

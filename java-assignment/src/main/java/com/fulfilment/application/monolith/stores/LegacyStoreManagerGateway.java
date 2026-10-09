@@ -1,51 +1,50 @@
 package com.fulfilment.application.monolith.stores;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.jboss.logging.Logger;
 
 @ApplicationScoped
 public class LegacyStoreManagerGateway {
 
+  private static final Logger LOGGER = Logger.getLogger(LegacyStoreManagerGateway.class);
+
   public void createStoreOnLegacySystem(Store store) {
-    // just to emulate as this would send this to a legacy system, let's write a temp file with the
+    LOGGER.debugf("Emulating legacy-system create for store %s.", store.name);
     writeToFile(store);
   }
 
   public void updateStoreOnLegacySystem(Store store) {
-    // just to emulate as this would send this to a legacy system, let's write a temp file with the
+    LOGGER.debugf("Emulating legacy-system update for store %s.", store.name);
     writeToFile(store);
   }
 
   private void writeToFile(Store store) {
+    Path tempFile = null;
     try {
-      // Step 1: Create a temporary file
-      Path tempFile;
-
       tempFile = Files.createTempFile(store.name, ".txt");
-
-      System.out.println("Temporary file created at: " + tempFile.toString());
-
-      // Step 2: Write data to the temporary file
       String content =
           "Store created. [ name ="
               + store.name
               + " ] [ items on stock ="
               + store.quantityProductsInStock
               + "]";
-      Files.write(tempFile, content.getBytes());
-      System.out.println("Data written to temporary file.");
-
-      // Step 3: Optionally, read the data back to verify
-      String readContent = new String(Files.readAllBytes(tempFile));
-      System.out.println("Data read from temporary file: " + readContent);
-
-      // Step 4: Delete the temporary file when done
-      Files.delete(tempFile);
-      System.out.println("Temporary file deleted.");
-
-    } catch (Exception e) {
-      e.printStackTrace();
+      Files.writeString(tempFile, content);
+      LOGGER.debugf("Wrote legacy-system payload to temporary file %s.", tempFile);
+    } catch (IOException e) {
+      LOGGER.errorf(e, "Failed to emulate legacy-system synchronization for store %s.", store.name);
+      throw new IllegalStateException("Legacy store synchronization failed.", e);
+    } finally {
+      if (tempFile != null) {
+        try {
+          Files.deleteIfExists(tempFile);
+        } catch (IOException e) {
+          LOGGER.errorf(e, "Failed to remove temporary legacy-sync file %s.", tempFile);
+          throw new IllegalStateException("Failed to clean up legacy-sync temporary file.", e);
+        }
+      }
     }
   }
 }

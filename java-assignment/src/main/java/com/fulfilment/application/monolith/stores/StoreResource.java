@@ -59,7 +59,11 @@ public class StoreResource {
 
     store.persist();
 
-    afterCommit(() -> legacyStoreManagerGateway.createStoreOnLegacySystem(store));
+    afterCommit(
+        () -> {
+          legacyStoreManagerGateway.createStoreOnLegacySystem(store);
+          LOGGER.infof("Created store %s and synchronized it to the legacy system.", store.name);
+        });
 
     return Response.ok(store).status(201).build();
   }
@@ -81,7 +85,11 @@ public class StoreResource {
     entity.name = updatedStore.name;
     entity.quantityProductsInStock = updatedStore.quantityProductsInStock;
 
-    afterCommit(() -> legacyStoreManagerGateway.updateStoreOnLegacySystem(entity));
+    afterCommit(
+        () -> {
+          legacyStoreManagerGateway.updateStoreOnLegacySystem(entity);
+          LOGGER.infof("Updated store %s and synchronized it to the legacy system.", entity.name);
+        });
 
     return entity;
   }
@@ -108,7 +116,11 @@ public class StoreResource {
       entity.quantityProductsInStock = updatedStore.quantityProductsInStock;
     }
 
-    afterCommit(() -> legacyStoreManagerGateway.updateStoreOnLegacySystem(entity));
+    afterCommit(
+        () -> {
+          legacyStoreManagerGateway.updateStoreOnLegacySystem(entity);
+          LOGGER.infof("Patched store %s and synchronized it to the legacy system.", entity.name);
+        });
 
     return entity;
   }
@@ -134,7 +146,10 @@ public class StoreResource {
           @Override
           public void afterCompletion(int status) {
             if (status == Status.STATUS_COMMITTED) {
+              LOGGER.debug("Store transaction committed; running legacy-system synchronization.");
               action.run();
+            } else {
+              LOGGER.debugf("Skipping legacy-system synchronization; transaction status was %d.", status);
             }
           }
         });
