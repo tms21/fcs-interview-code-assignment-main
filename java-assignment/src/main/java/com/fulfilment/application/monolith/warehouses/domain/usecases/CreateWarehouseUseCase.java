@@ -1,11 +1,13 @@
 package com.fulfilment.application.monolith.warehouses.domain.usecases;
 
-import com.fulfilment.application.monolith.warehouses.domain.models.Warehouse;
 import com.fulfilment.application.monolith.warehouses.domain.models.Location;
+import com.fulfilment.application.monolith.warehouses.domain.models.Warehouse;
 import com.fulfilment.application.monolith.warehouses.domain.ports.CreateWarehouseOperation;
 import com.fulfilment.application.monolith.warehouses.domain.ports.LocationResolver;
 import com.fulfilment.application.monolith.warehouses.domain.ports.WarehouseStore;
+import com.fulfilment.application.monolith.warehouses.domain.validator.WarehouseValidator;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.ws.rs.WebApplicationException;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -18,22 +20,30 @@ public class CreateWarehouseUseCase implements CreateWarehouseOperation {
 
   private final WarehouseStore warehouseStore;
   private final LocationResolver locationResolver;
+  private final WarehouseValidator validator;
 
   public CreateWarehouseUseCase(WarehouseStore warehouseStore, LocationResolver locationResolver) {
+    this(warehouseStore, locationResolver, new WarehouseValidator());
+  }
+
+  @Inject
+  public CreateWarehouseUseCase(
+      WarehouseStore warehouseStore, LocationResolver locationResolver, WarehouseValidator validator) {
     this.warehouseStore = warehouseStore;
     this.locationResolver = locationResolver;
+    this.validator = validator;
   }
 
   @Override
   public void create(Warehouse warehouse) {
     LOGGER.debug("Validating warehouse creation request.");
-    validateRequiredFields(warehouse);
+    validator.validateRequiredFields(warehouse);
     if (warehouseStore.findByBusinessUnitCode(warehouse.businessUnitCode) != null) {
       throw badRequest("Business unit code already exists.");
     }
 
     Location location = locationResolver.resolveByIdentifier(warehouse.location);
-    validateLocationAndCapacity(warehouse, location, null, warehouseStore.getAll());
+    validator.validateLocationAndCapacity(warehouse, location, null, warehouseStore.getAll());
 
     warehouse.id = null;
     warehouse.createdAt = LocalDateTime.now();
@@ -43,18 +53,7 @@ public class CreateWarehouseUseCase implements CreateWarehouseOperation {
   }
 
   static void validateRequiredFields(Warehouse warehouse) {
-    if (warehouse == null
-        || warehouse.businessUnitCode == null
-        || warehouse.businessUnitCode.isBlank()
-        || warehouse.location == null
-        || warehouse.location.isBlank()
-        || warehouse.capacity == null
-        || warehouse.stock == null) {
-      throw badRequest("Business unit code, location, capacity, and stock are required.");
-    }
-    if (warehouse.capacity <= 0 || warehouse.stock < 0 || warehouse.stock > warehouse.capacity) {
-      throw badRequest("Capacity must be positive and stock must be between zero and capacity.");
-    }
+    new WarehouseValidator().validateRequiredFields(warehouse);
   }
 
   static void validateLocationAndCapacity(
@@ -62,33 +61,8 @@ public class CreateWarehouseUseCase implements CreateWarehouseOperation {
       Location location,
       Warehouse excludedWarehouse,
       List<Warehouse> existingWarehouses) {
-    LOGGER.debugf("Checking warehouse limits for location %s.", warehouse.location);
-    if (location == null) {
-      throw badRequest("Warehouse location does not exist.");
-    }
-    if (warehouse.capacity > location.maxCapacity) {
-      throw badRequest("Warehouse capacity exceeds the location maximum capacity.");
-    }
-
-    long activeCount = 0;
-    long activeCapacity = 0;
-    for (Warehouse existing : existingWarehouses) {
-      if (excludedWarehouse != null
-          && (excludedWarehouse == existing
-              || (excludedWarehouse.id != null && excludedWarehouse.id.equals(existing.id)))) {
-        continue;
-      }
-      if (existing.location.equals(warehouse.location)) {
-        activeCount++;
-        activeCapacity += existing.capacity;
-      }
-    }
-    if (activeCount >= location.maxNumberOfWarehouses) {
-      throw badRequest("Maximum number of warehouses for this location has been reached.");
-    }
-    if (activeCapacity + warehouse.capacity > location.maxCapacity) {
-      throw badRequest("Total warehouse capacity exceeds the location maximum capacity.");
-    }
+    new WarehouseValidator().validateLocationAndCapacity(
+        warehouse, location, excludedWarehouse, existingWarehouses);
   }
 
   private static WebApplicationException badRequest(String message) {

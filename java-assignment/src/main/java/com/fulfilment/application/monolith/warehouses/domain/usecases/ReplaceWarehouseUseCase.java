@@ -1,11 +1,13 @@
 package com.fulfilment.application.monolith.warehouses.domain.usecases;
 
-import com.fulfilment.application.monolith.warehouses.domain.models.Warehouse;
 import com.fulfilment.application.monolith.warehouses.domain.models.Location;
+import com.fulfilment.application.monolith.warehouses.domain.models.Warehouse;
 import com.fulfilment.application.monolith.warehouses.domain.ports.LocationResolver;
 import com.fulfilment.application.monolith.warehouses.domain.ports.ReplaceWarehouseOperation;
 import com.fulfilment.application.monolith.warehouses.domain.ports.WarehouseStore;
+import com.fulfilment.application.monolith.warehouses.domain.validator.WarehouseValidator;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.ws.rs.WebApplicationException;
 import java.time.LocalDateTime;
 import org.jboss.logging.Logger;
@@ -17,17 +19,27 @@ public class ReplaceWarehouseUseCase implements ReplaceWarehouseOperation {
 
   private final WarehouseStore warehouseStore;
   private final LocationResolver locationResolver;
+  private final WarehouseValidator validator;
 
   public ReplaceWarehouseUseCase(
       WarehouseStore warehouseStore, LocationResolver locationResolver) {
+    this(warehouseStore, locationResolver, new WarehouseValidator());
+  }
+
+  @Inject
+  public ReplaceWarehouseUseCase(
+      WarehouseStore warehouseStore,
+      LocationResolver locationResolver,
+      WarehouseValidator validator) {
     this.warehouseStore = warehouseStore;
     this.locationResolver = locationResolver;
+    this.validator = validator;
   }
 
   @Override
   public void replace(Warehouse newWarehouse) {
     LOGGER.debugf("Validating replacement for warehouse %s.", newWarehouse.businessUnitCode);
-    CreateWarehouseUseCase.validateRequiredFields(newWarehouse);
+    validator.validateRequiredFields(newWarehouse);
     Warehouse currentWarehouse =
         warehouseStore.findByBusinessUnitCode(newWarehouse.businessUnitCode);
     if (currentWarehouse == null) {
@@ -47,8 +59,7 @@ public class ReplaceWarehouseUseCase implements ReplaceWarehouseOperation {
     }
 
     Location location = locationResolver.resolveByIdentifier(newWarehouse.location);
-    CreateWarehouseUseCase.validateLocationAndCapacity(
-        newWarehouse, location, currentWarehouse, warehouseStore.getAll());
+    validator.validateLocationAndCapacity(newWarehouse, location, currentWarehouse, warehouseStore.getAll());
 
     currentWarehouse.archivedAt = LocalDateTime.now();
     warehouseStore.update(currentWarehouse);

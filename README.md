@@ -1,9 +1,19 @@
-## About the assignment
+# Fulfilment Code Assignment
 
-You will find the tasks of this assignment on [CODE_ASSIGNMENT](assignment/CODE_ASSIGNMENT.md) file
+This repository contains the Java fulfilment application in [`java-assignment`](java-assignment/).
+It is a Quarkus service covering stores, products, locations, warehouses, and store/product/warehouse fulfilment assignments.
 
-## About the code base
+## Get started
 
-Some of this code here is based on https://github.com/quarkusio/quarkus-quickstarts
+Read the [Java application README](java-assignment/README.md) for prerequisites, PostgreSQL setup, build and test commands, local development, API details, and the fulfilment package architecture.
 
+The original assignment scope and business requirements are in [`java-assignment/CODE_ASSIGNMENT.md`](java-assignment/CODE_ASSIGNMENT.md).
 
+Quick start from the application directory:
+
+```sh
+cd java-assignment
+./mvnw quarkus:dev
+```
+
+JDK 17 or later and a PostgreSQL instance configured as described in the application README are required.

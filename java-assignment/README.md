@@ -1,87 +1,103 @@
-# Java Code Assignment
+# Java Fulfilment Assignment
 
-This is a short code assignment that explores various aspects of software development, including API implementation, documentation, persistence layer handling, and testing.
+A Quarkus application that demonstrates REST APIs, persistence, domain use cases, and tests for stores, products, locations, warehouses, and fulfilment assignments.
 
-## About the assignment
+The assignment requirements and business rules are documented in [CODE_ASSIGNMENT.md](CODE_ASSIGNMENT.md).
 
-You will find the tasks of this assignment on [CODE_ASSIGNMENT](CODE_ASSIGNMENT.md) file
+## Requirements
 
-## About the code base
+- JDK 17 or later. Use a JDK version supported by the project's Quarkus and Hibernate dependencies.
+- PostgreSQL for running the application and integration tests.
+- Docker is optional if you use another local PostgreSQL installation.
 
-This is based on https://github.com/quarkusio/quarkus-quickstarts
+Set `JAVA_HOME` to the JDK installation and ensure its `bin` directory is on `PATH`.
 
-### Requirements
+## Database setup
 
-To compile and run this demo you will need:
+The `dev` and `test` datasource profiles are configured to connect to PostgreSQL at `localhost:5432`, and Dev Services are disabled. Start a local PostgreSQL instance with a database and credentials that match `src/main/resources/application.properties`.
 
-- JDK 17+
+For example, with Docker:
 
-In addition, you will need either a PostgreSQL database, or Docker to run one.
+```sh
+docker run --rm --name fulfilment-postgres \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=local_dev_password \
+  -e POSTGRES_DB=quarkus_test \
+  -p 5432:5432 \
+  postgres:13.3
+```
 
-### Configuring JDK 17+
+Set the password for the active datasource profile in `src/main/resources/application.properties` to the same local development password, and update the settings if your database uses a different username, database name, or port. Hibernate creates the schema and loads the sample data from `src/main/resources/import.sql`.
 
-Make sure that `JAVA_HOME` environment variables has been set, and that a JDK 17+ `java` command is on the path.
+## Build and test
 
-## Building the demo
-
-Execute the Maven build on the root of the project:
+From this directory, build the application with:
 
 ```sh
 ./mvnw package
 ```
 
-## Running the demo
+On Windows PowerShell, use `.\mvnw.cmd package`.
 
-### Live coding with Quarkus
+Run all tests with:
 
-The Maven Quarkus plugin provides a development mode that supports
-live coding. To try this out:
+```sh
+./mvnw test
+```
+
+The fulfilment domain and use-case unit tests do not require PostgreSQL:
+
+```sh
+./mvnw -Dtest=FulfilmentAssignmentValidatorTest,AssignWarehouseToProductForStoreTest test
+```
+
+Quarkus endpoint and integration tests use the configured test datasource, so PostgreSQL must be running for those tests.
+
+## Run locally
+
+Start Quarkus in development mode:
 
 ```sh
 ./mvnw quarkus:dev
 ```
 
-In this mode you can make changes to the code and have the changes immediately applied, by just refreshing your browser.
+The application is available at <http://localhost:8080>. The generated warehouse API documentation and UI are available from the OpenAPI resources included by the project.
 
-    Hot reload works even when modifying your JPA entities.
-    Try it! Even the database schema will be updated on the fly.
-
-## (Optional) Run Quarkus in JVM mode
-
-When you're done iterating in developer mode, you can run the application as a conventional jar file.
-
-First compile it:
+To run the packaged application:
 
 ```sh
 ./mvnw package
+java -jar target/quarkus-app/quarkus-run.jar
 ```
 
-Next we need to make sure you have a PostgreSQL instance running (Quarkus automatically starts one for dev and test mode). To set up a PostgreSQL database with Docker:
+## Fulfilment assignment API
 
-```sh
-docker run -it --rm=true --name quarkus_test -e POSTGRES_USER=quarkus_test -e POSTGRES_PASSWORD=quarkus_test -e POSTGRES_DB=quarkus_test -p 15432:5432 postgres:13.3
+Fulfilment follows a ports-and-adapters structure under `src/main/java/com/fulfilment/application/monolith/fulfilment`:
+
+- `domain/model`, `domain/port`, `domain/validator`, and `domain/exception` contain the assignment model, persistence boundary, business constraints, and domain errors.
+- `application/usecase` coordinates assignment creation and retrieval without depending on REST or database implementations.
+- `adapters/restapi` maps HTTP requests and responses to the use case.
+- `adapters/database` implements the persistence port using JPA and Panache.
+
+Create an assignment by linking an existing store, product, and active warehouse:
+
+```http
+POST /fulfilment/assignments
+Content-Type: application/json
+
+{
+  "storeId": 1,
+  "productId": 1,
+  "warehouseId": 1
+}
 ```
 
-Connection properties for the Agroal datasource are defined in the standard Quarkus configuration file,
-`src/main/resources/application.properties`.
+The API returns `201 Created` with the created assignment. List assignments with `GET /fulfilment/assignments`.
 
-Then run it:
+The API enforces these limits:
 
-```sh
-java -jar ./target/quarkus-app/quarkus-run.jar
-```
-    Have a look at how fast it boots.
-    Or measure total native memory consumption...
+- A product can be assigned to at most two different warehouses for one store.
+- A store can use at most three different warehouses.
+- A warehouse can be assigned at most five different products.
 
-
-## See the demo in your browser
-
-Navigate to:
-
-<http://localhost:8080/index.html>
-
-Have fun, and join the team of contributors!
-
-## Troubleshooting
-
-Using **IntelliJ**, in case the generated code is not recognized and you have compilation failures, you may need to add `target/.../jaxrs` folder as "generated sources".
+Invalid IDs return `400`, missing store/product/active warehouse references return `404`, and duplicate assignments or limit violations return `409`.

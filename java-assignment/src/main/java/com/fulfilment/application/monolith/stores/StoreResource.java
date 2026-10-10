@@ -2,10 +2,8 @@ package com.fulfilment.application.monolith.stores;
 
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
-import jakarta.transaction.Status;
-import jakarta.transaction.Synchronization;
-import jakarta.transaction.TransactionSynchronizationRegistry;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
@@ -18,7 +16,6 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
-import org.jboss.logging.Logger;
 
 @Path("store")
 @ApplicationScoped
@@ -26,10 +23,7 @@ import org.jboss.logging.Logger;
 @Consumes("application/json")
 public class StoreResource {
 
-  @Inject LegacyStoreManagerGateway legacyStoreManagerGateway;
-  @Inject TransactionSynchronizationRegistry transactionRegistry;
-
-  private static final Logger LOGGER = Logger.getLogger(StoreResource.class.getName());
+  @Inject Event<StoreSyncEvent> storeSyncEvents;
 
   @GET
   public List<Store> get() {
@@ -54,12 +48,12 @@ public class StoreResource {
     }
 
     store.persist();
-
-    afterCommit(
-        () -> {
-          legacyStoreManagerGateway.createStoreOnLegacySystem(store);
-          LOGGER.infof("Created store %s and synchronized it to the legacy system.", store.name);
-        });
+    storeSyncEvents.fire(
+        new StoreSyncEvent(
+            StoreSyncEvent.Operation.CREATE,
+            store.id,
+            store.name,
+            store.quantityProductsInStock));
 
     return Response.ok(store).status(201).build();
   }
@@ -81,11 +75,12 @@ public class StoreResource {
     entity.name = updatedStore.name;
     entity.quantityProductsInStock = updatedStore.quantityProductsInStock;
 
-    afterCommit(
-        () -> {
-          legacyStoreManagerGateway.updateStoreOnLegacySystem(entity);
-          LOGGER.infof("Updated store %s and synchronized it to the legacy system.", entity.name);
-        });
+    storeSyncEvents.fire(
+        new StoreSyncEvent(
+            StoreSyncEvent.Operation.UPDATE,
+            entity.id,
+            entity.name,
+            entity.quantityProductsInStock));
 
     return entity;
   }
@@ -112,11 +107,12 @@ public class StoreResource {
       entity.quantityProductsInStock = updatedStore.quantityProductsInStock;
     }
 
-    afterCommit(
-        () -> {
-          legacyStoreManagerGateway.updateStoreOnLegacySystem(entity);
-          LOGGER.infof("Patched store %s and synchronized it to the legacy system.", entity.name);
-        });
+    storeSyncEvents.fire(
+        new StoreSyncEvent(
+            StoreSyncEvent.Operation.UPDATE,
+            entity.id,
+            entity.name,
+            entity.quantityProductsInStock));
 
     return entity;
   }
@@ -132,23 +128,4 @@ public class StoreResource {
     entity.delete();
     return Response.status(204).build();
   }
-
-  private void afterCommit(Runnable action) {
-    transactionRegistry.registerInterposedSynchronization(
-        new Synchronization() {
-          @Override
-          public void beforeCompletion() {}
-
-          @Override
-          public void afterCompletion(int status) {
-            if (status == Status.STATUS_COMMITTED) {
-              LOGGER.debug("Store transaction committed; running legacy-system synchronization.");
-              action.run();
-            } else {
-              LOGGER.debugf("Skipping legacy-system synchronization; transaction status was %d.", status);
-            }
-          }
-        });
-  }
-
 }
